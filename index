@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AMBIENCE GUIDE | 喜瑞飯店周邊漫步指南</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', 'Noto Sans JP', sans-serif;
+      background-color: #FAFAFA;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 隱藏橫向滾動條但保留滑動功能 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Bottom Sheet 彈窗動畫 */
+    .modal-backdrop { transition: opacity 0.25s ease; }
+    .modal-sheet { transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+  </style>
+</head>
+<body class="text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white">
+
+  <!-- 手機版置中容器（桌面端也會保持精緻的 App 寬度體驗） -->
+  <div class="max-w-md mx-auto min-h-screen bg-white shadow-sm relative pb-20">
+
+    <!-- 1. 頂部吸頂區 (Sticky Header & Filter Bar) -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-100">
+      <!-- 第一層：飯店識別 & 多語系切換 -->
+      <div class="flex items-center justify-between px-4 h-14">
+        <div onclick="resetFilters()" class="cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <h1 class="text-sm font-bold tracking-wider uppercase text-zinc-900">Ambience Guide</h1>
+          </div>
+          <p id="ui-subtitle" class="text-[11px] text-zinc-500 mt-0.5">喜瑞飯店 · 長安東路一段出發</p>
+        </div>
+
+        <!-- 語系切換膠囊 -->
+        <div class="flex items-center bg-zinc-100 p-0.5 rounded-full text-xs font-medium">
+          <button onclick="setLang('zh')" id="lang-zh" class="px-2.5 py-1 rounded-full bg-white text-zinc-900 shadow-xs transition">繁中</button>
+          <button onclick="setLang('en')" id="lang-en" class="px-2.5 py-1 rounded-full text-zinc-500 hover:text-zinc-900 transition">EN</button>
+          <button onclick="setLang('ja')" id="lang-ja" class="px-2.5 py-1 rounded-full text-zinc-500 hover:text-zinc-900 transition">日本語</button>
+        </div>
+      </div>
+
+      <!-- 第二層：橫向滑動分類篩選列 -->
+      <div class="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-t border-zinc-50">
+        <!-- 步行15分鐘內快速過濾開關 -->
+        <button id="btn-walk15" onclick="toggleWalk15()" class="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-zinc-200 text-zinc-700 bg-white transition">
+          <span>🚶</span>
+          <span id="ui-walk15">步行 15 分內</span>
+        </button>
+
+        <div class="h-4 w-[1px] bg-zinc-200 shrink-0"></div>
+
+        <!-- 分類膠囊容器 (由 JS 動態生成) -->
+        <div id="category-list" class="flex items-center gap-2"></div>
+      </div>
+    </header>
+
+    <!-- 狀態統計列 -->
+    <div class="px-4 pt-3 pb-1 flex items-center justify-between text-xs text-zinc-500">
+      <span id="ui-count">共 6 個精選地點</span>
+      <span id="ui-origin">起點：喜瑞飯店</span>
+    </div>
+
+    <!-- 2. 景點卡片網格 (Spot Card List) -->
+    <main id="cards-container" class="p-4 space-y-5">
+      <!-- 由 JS 動態渲染卡片 -->
+    </main>
+
+    <!-- 底部服務列 (快速聯繫櫃檯 / LINE) -->
+    <footer class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-zinc-100 px-4 py-2.5 flex items-center justify-between z-20">
+      <div class="text-xs">
+        <p id="ui-footer-title" class="font-semibold text-zinc-800">需要訂位或叫車協助？</p>
+        <p id="ui-footer-sub" class="text-[11px] text-zinc-500">24小時櫃檯隨時為您服務</p>
+      </div>
+      <a href="https://line.me/R/" target="_blank" class="px-3.5 py-2 rounded-full bg-[#06C755] text-white text-xs font-semibold shadow-xs active:scale-95 transition">
+        LINE 諮詢櫃檯
+      </a>
+    </footer>
+  </div>
+
+  <!-- 3. 底部抽屜式詳細資訊彈窗 (Bottom Sheet Modal) -->
+  <div id="spot-modal" class="fixed inset-0 z-50 hidden">
+    <!-- 半透明背景遮罩 -->
+    <div id="modal-backdrop" onclick="closeModal()" class="modal-backdrop absolute inset-0 bg-black/50 opacity-0"></div>
+    
+    <!-- 彈窗主體 -->
+    <div id="modal-sheet" class="modal-sheet absolute bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl max-h-[90vh] flex flex-col translate-y-full shadow-2xl">
+      
+      <!-- 頂部拖曳指示條 & 關閉按鈕 -->
+      <div class="relative pt-3 pb-2 px-4 flex justify-center items-center shrink-0">
+        <div class="w-10 h-1 bg-zinc-300 rounded-full"></div>
+        <button onclick="closeModal()" class="absolute right-4 top-3 w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 hover:bg-zinc-200 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- 可滾動內容區 -->
+      <div class="overflow-y-auto px-5 pb-6 space-y-4">
+        <!-- 主圖 -->
+        <div class="relative aspect-[16/10] rounded-2xl overflow-hidden bg-zinc-100">
+          <img id="m-img" src="" alt="" class="w-full h-full object-cover" />
+          <div id="m-badge" class="hidden absolute top-3 left-3 bg-zinc-900/85 backdrop-blur-xs text-white text-[11px] font-medium px-2.5 py-1 rounded-full">
+            ★ 喜瑞私房推薦
+          </div>
+        </div>
+
+        <!-- 標題與距離 -->
+        <div>
+          <div class="flex items-center gap-2 text-xs text-amber-600 font-semibold mb-1">
+            <span id="m-area">赤峰街商圈</span>
+            <span>·</span>
+            <span id="m-walk">從飯店步行約 12 分鐘</span>
+          </div>
+          <h2 id="m-title" class="text-xl font-bold text-zinc-900 leading-snug">店家名稱</h2>
+        </div>
+
+        <!-- 2x2 實用資訊網格 -->
+        <div class="grid grid-cols-2 gap-2.5 bg-zinc-50 p-3.5 rounded-2xl border border-zinc-100 text-xs">
+          <div>
+            <span id="ui-label-hours" class="text-zinc-400 block mb-0.5">營業時間</span>
+            <span id="m-hours" class="font-medium text-zinc-800">12:00 - 20:00</span>
+          </div>
+          <div>
+            <span id="ui-label-pay" class="text-zinc-400 block mb-0.5">預算與支付</span>
+            <span id="m-pay" class="font-medium text-zinc-800">NT$200 · 僅收現金</span>
+          </div>
+          <div class="col-span-2 pt-1.5 border-t border-zinc-200/60">
+            <span id="ui-label-must" class="text-zinc-400 block mb-0.5">推薦必點 / 必看</span>
+            <span id="m-must" class="font-semibold text-zinc-900">招牌肉桂捲、手沖單品</span>
+          </div>
+          <div class="col-span-2 pt-1.5 border-t border-zinc-200/60 flex items-center justify-between gap-2">
+            <div class="truncate">
+              <span id="ui-label-addr" class="text-zinc-400 block mb-0.5">地址（點擊複製給司機）</span>
+              <span id="m-addr" class="font-medium text-zinc-800">台北市大同區赤峰街...</span>
+            </div>
+            <button onclick="copyAddress()" id="btn-copy" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-zinc-700 font-medium active:bg-zinc-100">
+              複製
+            </button>
+          </div>
+        </div>
+
+        <!-- 深度介紹 -->
+        <p id="m-desc" class="text-sm text-zinc-600 leading-relaxed">
+          詳細介紹文字...
+        </p>
+
+        <!-- 櫃檯人員小叮嚀 -->
+        <div class="bg-amber-50/80 border-l-4 border-amber-400 p-3.5 rounded-r-xl">
+          <p id="ui-label-tip" class="text-xs font-bold text-amber-900 mb-1">💡 喜瑞櫃檯小叮嚀</p>
+          <p id="m-tip" class="text-xs text-amber-800 leading-relaxed">小叮嚀內容...</p>
+        </div>
+      </div>
+
+      <!-- 底部固定雙按鈕行動列 -->
+      <div class="p-4 bg-white border-t border-zinc-100 flex gap-3 shrink-0">
+        <a id="m-map-btn" href="#" target="_blank" class="flex-1 bg-zinc-900 text-white text-sm font-semibold py-3 rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+          <span>📍</span>
+          <span id="ui-btn-nav">開啟 Google Maps 導航</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模擬資料與互動邏輯（未來可直接替換為 Google Sheets CSV Fetch） -->
+  <script>
+    let currentLang = 'zh';
+    let currentCat = 'all';
+    let onlyWalk15 = false;
+    let currentSpot = null;
+
+    // 介面多語系字典
+    const i18n = {
+      zh: {
+        subtitle: '喜瑞飯店 · 長安東路一段出發',
+        walk15: '步行 15 分內',
+        origin: '起點：喜瑞飯店',
+        count: (n) => `共 ${n} 個精選地點`,
+        featured: '★ 喜瑞私房推薦',
+        walkMin: (m) => `🚶 步行 ${m} 分鐘`,
+        walkDetail: (m) => `從喜瑞飯店步行約 ${m} 分鐘`,
+        navShort: '導航 ↗',
+        footerTitle: '需要訂位或叫車協助？',
+        footerSub: '24小時櫃檯隨時為您服務',
+        labelHours: '營業時間',
+        labelPay: '預算與支付',
+        labelMust: '推薦必點 / 必看',
+        labelAddr: '地址（點擊複製給司機）',
+        copyBtn: '複製',
+        copiedBtn: '已複製 ✓',
+        labelTip: '💡 喜瑞櫃檯小叮嚀',
+        btnNav: '開啟 Google Maps 導航',
+        cats: { all: '全部推薦', food: '在地美食', cafe: '咖啡甜點', culture: '文化散步', night: '夜市宵夜' }
+      },
+      en: {
+        subtitle: 'Ambience Hotel · From Sec. 1, Changan E. Rd.',
+        walk15: 'Under 15m walk',
+        origin: 'Start: Ambience Hotel',
+        count: (n) => `${n} curated spots`,
+        featured: '★ Staff Pick',
+        walkMin: (m) => `🚶 ${m} min walk`,
+        walkDetail: (m) => `${m} min walk from Ambience Hotel`,
+        navShort: 'Map ↗',
+        footerTitle: 'Need a reservation or taxi?',
+        footerSub: '24/7 Front Desk at your service',
+        labelHours: 'Opening Hours',
+        labelPay: 'Budget & Payment',
+        labelMust: 'Must Try / Highlights',
+        labelAddr: 'Address (Tap to copy)',
+        copyBtn: 'Copy',
+        copiedBtn: 'Copied ✓',
+        labelTip: '💡 Concierge Insider Tip',
+        btnNav: 'Navigate with Google Maps',
+        cats: { all: 'All Spots', food: 'Local Eats', cafe: 'Cafe & Dessert', culture: 'Culture Walk', night: 'Night Market' }
+      },
+      ja: {
+        subtitle: 'アンビエンスホテル · 長安東路一段発',
+        walk15: '徒歩15分以内',
+        origin: '出発：喜瑞飯店',
+        count: (n) => `厳選スポット ${n} 件`,
+        featured: '★ ホテルスタッフ厳選',
+        walkMin: (m) => `🚶 徒歩 ${m} 分`,
+        walkDetail: (m) => `喜瑞飯店から徒歩約 ${m} 分`,
+        navShort: '地図 ↗',
+        footerTitle: '予約やタクシーの手配が必要ですか？',
+        footerSub: '24時間フロントにて承ります',
+        labelHours: '営業時間',
+        labelPay: '予算・お支払い',
+        labelMust: 'おすすめメニュー・見どころ',
+        labelAddr: '住所（タップしてコピー）',
+        copyBtn: 'コピー',
+        copiedBtn: 'コピー完了 ✓',
+        labelTip: '💡 フロントスタッフの豆知識',
+        btnNav: 'Google マップでルート案内',
+        cats: { all: 'すべて', food: 'ローカルグルメ', cafe: 'カフェ・スイーツ', culture: '街歩き・文化', night: '夜市・夜食' }
+      }
+    };
+
+    // 喜瑞飯店周邊真實景點示範資料（對應你先前整理的名單）
+    const spotsData = [
+      {
+        id: 'chifeng-1',
+        category: 'cafe',
+        walk_time: 12,
+        is_featured: true,
+        image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=80',
+        map_url: 'https://www.google.com/maps/search/?api=1&query=赤峰街商圈',
+        addr: '台北市大同區赤峰街49巷',
+        zh: {
+          name: '赤峰街老宅咖啡與選物聚落',
+          area: '中山 / 赤峰街',
+          short_desc: '昔日打鐵街轉型而成的文青巷弄，隱藏著獨立書店、古著店與手作甜點咖啡廳。',
+          hours: '12:00 – 20:00（依各店家為準）',
+          pay: 'NT$200–450 · 部分僅收現金',
+          must: '手沖精品咖啡、昭和布丁、台灣設計師選物',
+          desc: '從喜瑞飯店沿著長安東路往西散步即可抵達。赤峰街保留了台北罕見的昭和時期紅磚老屋與汽車零件行風貌，新舊交融的街景非常適合午後漫步拍照。',
+          tip: '平日下午 2 點至 4 點光影最美且人潮較少；週末熱門咖啡廳建議先透過櫃檯協助確認候位狀況。'
+        },
+        en: {
+          name: 'Chifeng Street Retro Cafes & Boutiques',
+          area: 'Zhongshan / Chifeng St.',
+          short_desc: 'Once an auto-parts alley, now Taipei’s hippest neighborhood packed with indie cafes and vintage shops.',
+          hours: '12:00 – 20:00 (Varies by shop)',
+          pay: 'NT$200–450 · Cash preferred',
+          must: 'Pour-over coffee, Showa pudding, local design goods',
+          desc: 'Just a pleasant stroll west from Ambience Hotel. Chifeng Street blends old-school hardware stores with minimalist Japanese-style bakeries and indie bookstores.',
+          tip: 'Best visited on weekday afternoons between 2–4 PM to avoid weekend queues.'
+        },
+        ja: {
+          name: '赤峰街（チーフォンジエ）レトロカフェ＆雑貨巡り',
+          area: '中山 / 赤峰街',
+          short_desc: 'かつての町工場街がリノベーションされ、隠れ家カフェや古着屋が集まる台北最旬エリア。',
+          hours: '12:00 – 20:00（店舗により異なる）',
+          pay: 'NT$200–450 · 現金のみ多め',
+          must: 'ハンドドリップコーヒー、昭和プリン、台湾雑貨',
+          desc: 'ホテルから西へ徒歩約12分。昔ながらの部品屋と洗練されたロースタリーカフェが隣り合う、台北ならではの街歩きが楽しめます。',
+          tip: '平日の14時〜16時頃が比較的空いていておすすめです。'
+        }
+      },
+      {
+        id: 'ningxia-1',
+        category: 'night',
+        walk_time: 18,
+        is_featured: true,
+        image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80',
+        map_url: 'https://www.google.com/maps/search/?api=1&query=寧夏夜市',
+        addr: '台北市大同區寧夏路58號',
+        zh: {
+          name: '寧夏觀光夜市（米其林必比登美食聚集地）',
+          area: '大同區 / 寧夏路',
+          short_desc: '台北密度最高的傳統小吃夜市，多攤榮獲米其林必比登推介，動線集中好逛。',
+          hours: '17:00 – 00:00（每日營業）',
+          pay: 'NT$60–200 · 僅收現金',
+          must: '劉芋仔蛋黃芋餅、方家雞肉飯、圓環邊蚵仔煎',
+          desc: '不同於大型綜合夜市，寧夏夜市專注於「最道地的台灣古早味小吃」，短短三百公尺聚集了數十年歷史的老字號攤商。',
+          tip: '傍晚 5:30 剛開市時排隊時間最短！建議準備百元鈔票與零錢，吃飽後可順道散步回飯店。'
+        },
+        en: {
+          name: 'Ningxia Night Market (Michelin Bib Gourmand Hub)',
+          area: 'Datong Dist.',
+          short_desc: 'Taipei’s most concentrated traditional food night market featuring multiple Michelin-recognized stalls.',
+          hours: '17:00 – 00:00 (Daily)',
+          pay: 'NT$60–200 · Cash Only',
+          must: 'Taro ball with salted egg yolk, Chicken rice, Oyster omelet',
+          desc: 'Compact, easy to navigate, and focused purely on classic Taiwanese street food heritage.',
+          tip: 'Arrive around 5:30 PM right as stalls open to skip the long dinner lines. Bring small bills!'
+        },
+        ja: {
+          name: '寧夏夜市（ミシュラン・ビブグルマン掲載屋台の宝庫）',
+          area: '大同区 / 寧夏路',
+          short_desc: '台北で最も伝統グルメが密集する夜市。ミシュラン掲載の老舗屋台が立ち並びます。',
+          hours: '17:00 – 00:00（無休）',
+          pay: 'NT$60–200 · 現金のみ',
+          must: '揚げタロイモ団子（劉芋仔）、鶏肉飯、牡蠣オムレツ',
+          desc: '約300メートルの通りに老舗グルメが凝縮されており、初めての台湾夜市でも歩きやすいのが魅力です。',
+          tip: '17:30頃の開店直後に行くと並ばずに食べられます。100元札や小銭の用意が便利です。'
+        }
+      },
+      {
+        id: 'dihua-1',
+        category: 'culture',
+        walk_time: 24,
+        is_featured: false,
+        image: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80',
+        map_url: 'https://www.google.com/maps/search/?api=1&query=迪化街一段',
+        addr: '台北市大同區迪化街一段61號',
+        zh: {
+          name: '迪化街歷史街區與霞海城隍廟',
+          area: '大稻埕',
+          short_desc: '百年巴洛克式建築群、南北貨茶行與聞名海內外的月老廟，感受老台北的繁華記憶。',
+          hours: '09:30 – 19:00（戶外街區全天開放）',
+          pay: '免費參觀 · 伴手禮可刷卡/現金',
+          must: '大稻埕建築立面拍照、高山茶試飲、果乾與烏魚子伴手禮',
+          desc: '大稻埕自清末以來便是台北茶葉與布匹貿易中心，如今老屋進駐了許多融合傳統工藝的茶館與設計品牌。',
+          tip: '若不想步行太久，可請櫃檯協助叫計程車，從飯店出發車程僅約 8 分鐘（車資約 NT$100–120）。'
+        },
+        en: {
+          name: 'Dihua Street Historic District & Xiahai Temple',
+          area: 'Dadaocheng',
+          short_desc: 'Centuries-old Baroque facades, traditional tea merchants, and Taipei’s famous matchmaking temple.',
+          hours: '09:30 – 19:00',
+          pay: 'Free entry · Cards/Cash for shops',
+          must: 'Heritage architecture, Taiwanese Oolong tea tasting, dried fruits',
+          desc: 'Once the wealthiest trading hub in Taipei, Dihua Street preserves stunning 19th-century merchant houses.',
+          tip: 'A quick 8-minute taxi ride from the hotel (approx. NT$110) if you prefer to save your steps for exploring.'
+        },
+        ja: {
+          name: '迪化街（ディーホアジエ）歴史街区＆霞海城隍廟',
+          area: '大稲埕エリア',
+          short_desc: 'バロック様式の歴史的建造物と乾物・台湾茶の老舗、恋愛成就で有名な月下老人が集まる街。',
+          hours: '09:30 – 19:00',
+          pay: '散策無料 · お土産店はカード/現金可',
+          must: 'レトロ建築散策、台湾高山茶の試飲、ドライフルーツ',
+          desc: '19世紀末から茶葉や漢方の交易で栄えた台北最古の問屋街。リノベーション茶藝館も充実しています。',
+          tip: 'ホテルからタクシーで約8分（約110元）ですので、行きはタクシーの利用もおすすめです。'
+        }
+      },
+      {
+        id: 'food-local-1',
+        category: 'food',
+        walk_time: 7,
+        is_featured: true,
+        image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80',
+        map_url: 'https://www.google.com/maps/search/?api=1&query=長安東路一段熱炒',
+        addr: '台北市中山區長安東路一段',
+        zh: {
+          name: '長安東路一段台式熱炒一條街',
+          area: '飯店周邊 / 長安東路',
+          short_desc: '就在飯店步行 7 分鐘距離！體驗最道地的台灣夜晚熱炒文化與冰涼生啤酒。',
+          hours: '17:00 – 01:00',
+          pay: 'NT$350–600 / 人 · 現金為主',
+          must: '三杯雞、鳳梨蝦球、炒水蓮、18天台灣生啤酒',
+          desc: '長安東路一段是台北著名的熱炒聚落，鑊氣十足的現炒料理搭配熱情喧鬧的用餐氛圍，是體驗在地夜生活的首選。',
+          tip: '熱門時段（19:00–21:00）建議提前請飯店櫃檯幫您電話訂位，以免現場久候。'
+        },
+        en: {
+          name: 'Changan East Rd. Taiwanese Stir-Fry (Rechao) Alley',
+          area: 'Hotel Neighborhood',
+          short_desc: 'Just 7 mins away! Experience authentic late-night Taiwanese wok dishes and ice-cold draft beer.',
+          hours: '17:00 – 01:00',
+          pay: 'NT$350–600 / person · Cash',
+          must: 'Three-Cup Chicken, Pineapple Shrimp, 18-Day Taiwan Draft Beer',
+          desc: 'Lively open-front local taverns serving dozens of freshly wok-fried dishes at great value.',
+          tip: 'Ask our front desk to call ahead for a table during peak dinner hours (7–9 PM).'
+        },
+        ja: {
+          name: '長安東路一段 台湾式居酒屋「熱炒（ルーチャオ）」通り',
+          area: 'ホテル周辺',
+          short_desc: 'ホテルから徒歩7分！活気あふれるローカル居酒屋で本場の台湾料理と生ビールを堪能。',
+          hours: '17:00 – 01:00',
+          pay: 'NT$350–600 / 人 · 現金のみ',
+          must: '三杯鶏（サンペイジー）、パイナップルエビマヨ、賞味期限18日台湾生ビール',
+          desc: '強火で一気に仕上げる絶品中華おつまみと、賑やかなローカルの雰囲気を味わえるスポットです。',
+          tip: '19時〜21時のピーク時は混み合いますので、フロントにて事前予約を承ります。'
+        }
+      }
+    ];
+
+    // 初始化渲染
+    function renderAll() {
+      const t = i18n[currentLang];
+
+      // 更新靜態 UI 文字
+      document.getElementById('ui-subtitle').textContent = t.subtitle;
+      document.getElementById('ui-walk15').textContent = t.walk15;
+      document.getElementById('ui-origin').textContent = t.origin;
+      document.getElementById('ui-footer-title').textContent = t.footerTitle;
+      document.getElementById('ui-footer-sub').textContent = t.footerSub;
+      document.getElementById('ui-label-hours').textContent = t.labelHours;
+      document.getElementById('ui-label-pay').textContent = t.labelPay;
+      document.getElementById('ui-label-must').textContent = t.labelMust;
+      document.getElementById('ui-label-addr').textContent = t.labelAddr;
+      document.getElementById('ui-label-tip').textContent = t.labelTip;
+      document.getElementById('ui-btn-nav').textContent = t.btnNav;
+
+      // 更新語系按鈕樣式
+      ['zh', 'en', 'ja'].forEach(lang => {
+        const btn = document.getElementById(`lang-${lang}`);
+        if (lang === currentLang) {
+          btn.className = 'px-2.5 py-1 rounded-full bg-white text-zinc-900 shadow-xs font-bold transition';
+        } else {
+          btn.className = 'px-2.5 py-1 rounded-full text-zinc-500 hover:text-zinc-900 transition';
+        }
+      });
+
+      // 更新步行15分按鈕樣式
+      const walkBtn = document.getElementById('btn-walk15');
+      walkBtn.className = onlyWalk15
+        ? 'shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500 text-white border border-amber-500 transition'
+        : 'shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-zinc-200 text-zinc-700 bg-white transition';
+
+      // 渲染分類膠囊列
+      const catContainer = document.getElementById('category-list');
+      catContainer.innerHTML = Object.entries(t.cats).map(([key, label]) => {
+        const active = currentCat === key;
+        const cls = active
+          ? 'shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-zinc-900 text-white transition'
+          : 'shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition';
+        return `<button onclick="setCat('${key}')" class="${cls}">${label}</button>`;
+      }).join('');
+
+      // 過濾資料
+      const filtered = spotsData.filter(spot => {
+        const matchCat = currentCat === 'all' || spot.category === currentCat;
+        const matchWalk = !onlyWalk15 || spot.walk_time <= 15;
+        return matchCat && matchWalk;
+      });
+
+      document.getElementById('ui-count').textContent = t.count(filtered.length);
+
+      // 渲染卡片列表
+      const cardsContainer = document.getElementById('cards-container');
+      cardsContainer.innerHTML = filtered.map(spot => {
+        const info = spot[currentLang];
+        return `
+          <article onclick="openModal('${spot.id}')" class="group bg-white rounded-2xl border border-zinc-100 shadow-xs overflow-hidden cursor-pointer active:scale-[0.99] transition">
+            <!-- 圖片區 -->
+            <div class="relative aspect-[16/10] bg-zinc-100 overflow-hidden">
+              <img src="${spot.image}" alt="${info.name}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+              
+              ${spot.is_featured ? `
+                <div class="absolute top-3 left-3 bg-zinc-900/85 backdrop-blur-xs text-white text-[11px] font-medium px-2.5 py-1 rounded-full">
+                  ${t.featured}
+                </div>
+              ` : ''}
+
+              <div class="absolute bottom-3 right-3 bg-white/95 backdrop-blur-xs text-zinc-900 text-xs font-semibold px-2.5 py-1 rounded-full shadow-xs">
+                ${t.walkMin(spot.walk_time)}
+              </div>
+            </div>
+
+            <!-- 文字資訊區 -->
+            <div class="p-4">
+              <div class="flex items-start justify-between gap-2">
+                <h2 class="text-base font-bold text-zinc-900 leading-snug line-clamp-2">${info.name}</h2>
+                <span class="shrink-0 text-[11px] font-medium bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-md mt-0.5">
+                  ${info.area}
+                </span>
+              </div>
+              <p class="text-xs text-zinc-500 mt-1.5 line-clamp-2 leading-relaxed">
+                ${info.short_desc}
+              </p>
+
+              <!-- 卡片底部快速操作列 -->
+              <div class="mt-3 pt-2.5 border-t border-zinc-50 flex items-center justify-between text-xs">
+                <span class="text-zinc-400 truncate max-w-[65%]">${info.must}</span>
+                <a href="${spot.map_url}" target="_blank" onclick="event.stopPropagation()" class="font-semibold text-zinc-900 hover:text-amber-600 flex items-center gap-0.5">
+                  ${t.navShort}
+                </a>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    // 互動控制函式
+    function setLang(lang) {
+      currentLang = lang;
+      renderAll();
+      if (currentSpot) populateModal(currentSpot);
+    }
+
+    function setCat(cat) {
+      currentCat = cat;
+      renderAll();
+    }
+
+    function toggleWalk15() {
+      onlyWalk15 = !onlyWalk15;
+      renderAll();
+    }
+
+    function resetFilters() {
+      currentCat = 'all';
+      onlyWalk15 = false;
+      renderAll();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Modal 開啟與關閉
+    function openModal(id) {
+      const spot = spotsData.find(s => s.id === id);
+      if (!spot) return;
+      currentSpot = spot;
+      populateModal(spot);
+
+      const modal = document.getElementById('spot-modal');
+      const backdrop = document.getElementById('modal-backdrop');
+      const sheet = document.getElementById('modal-sheet');
+
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden'; // 鎖定背景滾動
+
+      requestAnimationFrame(() => {
+        backdrop.classList.remove('opacity-0');
+        sheet.classList.remove('translate-y-full');
+      });
+    }
+
+    function populateModal(spot) {
+      const t = i18n[currentLang];
+      const info = spot[currentLang];
+
+      document.getElementById('m-img').src = spot.image;
+      document.getElementById('m-badge').textContent = t.featured;
+      document.getElementById('m-badge').classList.toggle('hidden', !spot.is_featured);
+      document.getElementById('m-area').textContent = info.area;
+      document.getElementById('m-walk').textContent = t.walkDetail(spot.walk_time);
+      document.getElementById('m-title').textContent = info.name;
+      document.getElementById('m-hours').textContent = info.hours;
+      document.getElementById('m-pay').textContent = info.pay;
+      document.getElementById('m-must').textContent = info.must;
+      document.getElementById('m-addr').textContent = spot.addr;
+      document.getElementById('m-desc').textContent = info.desc;
+      document.getElementById('m-tip').textContent = info.tip;
+      document.getElementById('m-map-btn').href = spot.map_url;
+      document.getElementById('btn-copy').textContent = t.copyBtn;
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('spot-modal');
+      const backdrop = document.getElementById('modal-backdrop');
+      const sheet = document.getElementById('modal-sheet');
+
+      backdrop.classList.add('opacity-0');
+      sheet.classList.add('translate-y-full');
+
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+        currentSpot = null;
+      }, 280);
+    }
+
+    function copyAddress() {
+      if (!currentSpot) return;
+      navigator.clipboard.writeText(currentSpot.addr);
+      const btn = document.getElementById('btn-copy');
+      btn.textContent = i18n[currentLang].copiedBtn;
+      setTimeout(() => {
+        btn.textContent = i18n[currentLang].copyBtn;
+      }, 1500);
+    }
+
+    // 啟動頁面
+    renderAll();
+  </script>
+</body>
+</html>
